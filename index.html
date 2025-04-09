@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello World | Telegram Mini App</title>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+      background: #f0f2f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    button {
+      background: #0088cc;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Hello, Telegram Mini App! 👋</h1>
+    <p>Your Telegram user ID: <strong id="user-id">Loading...</strong></p>
+    <button id="alert-button">Show Telegram Alert</button>
+  </div>
+
+  <script>
+    // Initialize the Telegram WebApp
+    const tg = window.Telegram.WebApp;
+
+    // Expand the Mini App to full view (recommended)
+    tg.expand();
+
+    // Display the user's Telegram ID
+    document.getElementById('user-id').textContent = tg.initDataUnsafe.user?.id || 'Not logged in';
+
+    // Button to show a native Telegram alert
+    document.getElementById('alert-button').addEventListener('click', () => {
+      tg.showAlert('This is a native Telegram alert!');
+    });
+
+    // Optional: Handle theme changes (light/dark mode)
+    tg.onEvent('themeChanged', () => {
+      document.body.style.background = tg.colorScheme === 'dark' ? '#212121' : '#f0f2f5';
+    });
+  </script>
+</body>
+</html>
