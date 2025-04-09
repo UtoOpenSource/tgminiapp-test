@@ -299,6 +299,31 @@
     });
 
     var CanvasBgPattern = null;
+    var clearColor = '#ffffff00'
+
+    function drawTransparencyGrid(ctx, width, height) {
+      // Create off-screen pattern
+      if (CanvasBgPattern == null) {
+        const size = 8; // Size of grid squares
+        var patternCanvas = document.createElement('canvas');
+        patternCanvas.width = patternCanvas.height = size * 2;
+        const pCtx = patternCanvas.getContext('2d');
+        
+        // Draw checkerboard
+        pCtx.fillStyle = '#e0e0e0';
+        pCtx.fillRect(0, 0, size * 2, size * 2);
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillRect(0, 0, size, size);
+        pCtx.fillRect(size, size, size, size);
+        
+        // Apply pattern
+        CanvasBgPattern = ctx.createPattern(patternCanvas, 'repeat');
+      }
+      ctx.fillStyle = tg.themeParams.bg_color ? tg.themeParams.bg_color : '#fabaca';
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = CanvasBgPattern;
+    }
 
     // ------------------------
     // Canvas and Offscreen Setup
@@ -307,16 +332,7 @@
       canvas = document.getElementById('canvas');
       ctx = canvas.getContext('2d');
 
-      const tgWebApp = window.Telegram?.WebApp;
-
-      const bgColor = tgWebApp?.themeParams?.bg_color || '#f0f0f0';
-      const dotColor = tgWebApp?.themeParams?.text_color;
-
-      const patternCanvas = createDotPatternCanvas(bgColor, dotColor);
-      CanvasBgPattern = ctx.createPattern(patternCanvas, 'repeat');
-      
       console.log(CanvasBgPattern);
-      canvas.fillStyle = CanvasBgPattern;
 
       // Create offscreen canvas for permanent drawing
       offscreenCanvas = document.createElement('canvas');
@@ -324,7 +340,7 @@
       offscreenCanvas.height = height;
       offscreenCtx = offscreenCanvas.getContext('2d');
       // Fill offscreen canvas with white and initial color settings if needed
-      offscreenCtx.fillStyle = fillcolor;
+      offscreenCtx.fillStyle = clearColor;
       offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
       // Set visible canvas size to fill container
       resizeCanvas();
@@ -339,12 +355,13 @@
       redraw();
     }
 
+
     function redraw() {
       // Redraw the offscreen canvas onto the visible canvas with current pan/zoom
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      canvas.fillStyle = CanvasBgPattern;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawTransparencyGrid(ctx, canvas.width, canvas.height);
       ctx.setTransform(scale, 0, 0, scale, panX, panY);
+      ctx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
       ctx.drawImage(offscreenCanvas, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
     }
     
@@ -360,12 +377,14 @@
       offscreenCtx.beginPath();
       offscreenCtx.moveTo(pos.x, pos.y);
       if (currentTool === 'brush') {
+        offscreenCtx.globalCompositeOperation = "source-over";
         offscreenCtx.strokeStyle = currentColor;
         offscreenCtx.lineWidth = brushSize;
         offscreenCtx.lineCap = 'round';
         offscreenCtx.lineJoin = 'round';
       } else if (currentTool === 'eraser') {
-        offscreenCtx.strokeStyle = 'white';
+        offscreenCtx.globalCompositeOperation = "destination-out";
+        offscreenCtx.strokeStyle = '#000000FF';
         offscreenCtx.lineWidth = brushSize * 2;
       }
     }
@@ -491,12 +510,7 @@
     // ------------------------
     function saveImage() {
       offscreenCanvas.toBlob(function(blob) {
-        if (tg.platform !== 'unknown') {
-          tg.sendData(JSON.stringify({
-            type: 'image',
-            data: offscreenCanvas.toDataURL().split(',')[1]
-          }));
-        } else {
+        {
           const link = document.createElement('a');
           link.download = 'drawing.png';
           link.href = URL.createObjectURL(blob);
@@ -619,7 +633,7 @@
     
     document.getElementById('clear-canvas').addEventListener('click', () => {
       offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
-      offscreenCtx.fillStyle = 'white';
+      offscreenCtx.fillStyle = clearColor;
       offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
       saveState();
       redraw();
