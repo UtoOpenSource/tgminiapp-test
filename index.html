@@ -3,61 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hello World | Telegram Mini App</title>
-  <!-- Telegram WebApp SDK -->
+  <title>Mini App Demo</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
-      background: #f0f2f5;
-    }
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-    button {
-      background: #0088cc;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 16px;
-    }
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Hello, Telegram Mini App! 👋</h1>
-    <p>Your Telegram user ID: <strong id="user-id">Loading...</strong></p>
-    <button id="alert-button">Show Telegram Alert</button>
-  </div>
-
+  <canvas id="canvas"></canvas>
   <script>
-    // Initialize the Telegram WebApp
     const tg = window.Telegram.WebApp;
+    
+    // 1. Configure for compact mode (near text input)
+    tg.MainButton.hide(); // Hide default button
+    tg.enableClosingConfirmation(); // Prevent accidental closes
+    tg.setHeaderColor('#0088cc'); // Match Telegram's theme
 
-    // Expand the Mini App to full view (recommended)
-    tg.expand();
+    // 2. Dynamic canvas setup (scales to container)
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let ripples = [];
+    
+    function resize() {
+      canvas.width = tg.viewportWidth;
+      canvas.height = tg.viewportHeight * 0.5; // Compact height
+    }
+    tg.onEvent('viewportChanged', resize);
+    resize();
 
-    // Display the user's Telegram ID
-    document.getElementById('user-id').textContent = tg.initDataUnsafe.user?.id || 'Not logged in';
-
-    // Button to show a native Telegram alert
-    document.getElementById('alert-button').addEventListener('click', () => {
-      tg.showAlert('This is a native Telegram alert!');
+    // 3. Interactive ripple animation
+    canvas.addEventListener('click', (e) => {
+      ripples.push({
+        x: e.offsetX,
+        y: e.offsetY,
+        radius: 0,
+        alpha: 1
+      });
     });
 
-    // Optional: Handle theme changes (light/dark mode)
-    tg.onEvent('themeChanged', () => {
-      document.body.style.background = tg.colorScheme === 'dark' ? '#212121' : '#f0f2f5';
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw ripples
+      ripples.forEach((ripple, i) => {
+        ctx.beginPath();
+        ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 136, 204, ${ripple.alpha})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ripple.radius += 2;
+        ripple.alpha -= 0.02;
+        
+        if (ripple.alpha <= 0) ripples.splice(i, 1);
+      });
+      
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // 4. Media example (image/video would work similarly)
+    tg.showPopup({
+      title: "Media Ready!",
+      message: "You can embed images/videos using standard HTML tags.",
+      buttons: [{ type: 'close' }]
     });
   </script>
 </body>
