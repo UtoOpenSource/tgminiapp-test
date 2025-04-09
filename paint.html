@@ -509,14 +509,29 @@
     // Save function
     // ------------------------
     function saveImage() {
-      offscreenCanvas.toBlob(function(blob) {
-        {
-          const link = document.createElement('a');
-          link.download = 'drawing.png';
-          link.href = URL.createObjectURL(blob);
-          link.click();
+
+      canvas.toBlob(async (blob) => {
+        try {
+          const url = URL.createObjectURL(blob);
+          try {
+            Telegram.WebApp.downloadFile(url, 'drawing.png');
+          } catch (error) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drawing.png';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }, 100);
+          }
+        } catch (error) {
+          console.error('Download failed:', error);
+          Telegram.WebApp.showAlert(`Download failed: ${error.message}`);
         }
-      }, 'image/png');
+      }, 'image/png', 1.0); // Highest quality PNG
+
     }
 
     // ------------------------
