@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telegram Paint</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg-color: var(--tg-theme-bg-color, #ffffff);
+      --text-color: var(--tg-theme-text-color, #222222);
+      --hint-color: var(--tg-theme-hint-color, #999999);
+      --button-color: var(--tg-theme-button-color, #50a8eb);
+      --button-text-color: var(--tg-theme-button-text-color, #ffffff);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      position: relative;
+      overflow: hidden;
+      height: 100vh;
+    }
+    /* Floating Startup Dialog */
+    #startup-dialog {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    #startup-dialog .dialog-box {
+      background: var(--bg-color);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+    #startup-dialog input {
+      margin: 8px 0;
+      padding: 4px;
+    }
+    #startup-dialog button {
+      padding: 8px 16px;
+      background: var(--button-color);
+      color: var(--button-text-color);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    /* Floating Action Bar (top left) */
+    #action-bar {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: var(--secondary-bg);
+      border-radius: 8px;
+      padding: 8px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #action-bar button {
+      padding: 6px 10px;
+      background: var(--button-color);
+      color: var(--button-text-color);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    /* Floating Tool Bar (bottom center) */
+    #tool-bar {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--secondary-bg);
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 100;
+    }
+    .tool-btn {
+      background: var(--bg-color);
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-color);
+      cursor: pointer;
+    }
+    .tool-btn.active {
+      background: var(--button-color);
+      color: var(--button-text-color);
+    }
+    .color-swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-color);
+      cursor: pointer;
+    }
+    .color-swatch.active {
+      border-color: var(--button-color);
+    }
+    /* Hidden floating panels for tool options and color picker */
+    #floating-panel, #color-picker {
+      position: fixed;
+      background: var(--secondary-bg);
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 100;
+      display: none;
+    }
+    #floating-panel {
+      top: 10px;
+      right: 10px;
+    }
+    #color-picker {
+      bottom: 80px;
+      right: 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    /* Canvas container */
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+    }
+    canvas {
+      background: white;
+      touch-action: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Startup Dialogue -->
+  <div id="startup-dialog">
+    <div class="dialog-box">
+      <h2>Create New Picture</h2>
+      <div>
+        <label>Width: 
+          <input type="number" id="init-width" value="800">
+        </label>
+      </div>
+      <div>
+        <label>Height: 
+          <input type="number" id="init-height" value="600">
+        </label>
+      </div>
+      <div>
+        <label>Initial Color: 
+          <input type="color" id="init-color" value="#ffffff">
+        </label>
+      </div>
+      <button id="create-picture">Create New Picture</button>
+    </div>
+  </div>
+
+  <!-- Action Bar (top left) -->
+  <div id="action-bar" style="display:none;">
+    <button id="undo-btn" style="display:none;">↩️ Undo</button>
+    <button id="redo-btn" style="display:none;">↪️ Redo</button>
+    <button id="save-btn" style="display:none;">💾 Save</button>
+  </div>
+
+  <!-- Canvas container -->
+  <div id="canvas-container" style="display:none;">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <!-- Tool Bar (bottom center) -->
+  <div id="tool-bar" style="display:none;">
+    <button class="tool-btn" data-tool="brush">🖌️ Brush</button>
+    <button class="tool-btn" data-tool="eraser">✏️ Eraser</button>
+    <button class="tool-btn" data-tool="move">🖐️ Move</button>
+    <div id="color-choose-tool" style="display: flex; align-items: center; gap: 4px;">
+      <input type="color" id="color-input" value="#000000" style="padding:4px 6px; background: var(--secondary-bg); border: none; border-radius:4px; cursor:pointer;">
+    </div>
+    <div id="color-container" style="display: flex; align-items: center; gap: 4px;">
+      <!-- Color swatches will be populated dynamically -->
+        <!--<button id="new-color-btn" style="padding:4px 6px; background: var(--secondary-bg); border: none; border-radius:4px; cursor:pointer;">➕</button>-->
+    </div>
+  </div>
+
+  <!-- Floating panels -->
+  <div id="floating-panel">
+    <!-- Tool-specific options (only one visible at a time) -->
+    <div id="brush-options">
+      <label>Size: 
+        <input type="range" id="brush-size" min="1" max="50" value="5">
+      </label>
+    </div>
+    <div id="eraser-options">
+      <button id="clear-canvas">Clear All</button>
+    </div>
+    <div id="move-options">
+      <button id="reset-view">Reset View</button>
+    </div>
+  </div>
+
+    <!--<div id="color-picker">
+    <input type="color" id="color-input" value="#000000">
+    <button id="add-color-btn">Add</button>
+    </div>-->
+
+  <script>
+    // Telegram WebApp initialization
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    tg.enableClosingConfirmation();
+
+    // Global configuration and variables
+    let canvas, ctx;
+    let offscreenCanvas, offscreenCtx;
+    let isDrawing = false;
+    let currentTool = 'brush';
+    let currentColor = "#000000";
+    let brushSize = 5;
+    let scale = 1, panX = 0, panY = 0;
+    let startX, startY;
+    let history = [];
+    let historyIndex = -1;
+    const maxHistory = 20;
+    // Default recent colors queue (newest left)
+    let recentColors = ['#ff0000', '#00ff00', '#0000ff', '#ffffff', '#000000'];
+    
+    // UI Elements
+    const actionBar = document.getElementById('action-bar');
+    const toolBar = document.getElementById('tool-bar');
+    const canvasContainer = document.getElementById('canvas-container');
+    const startupDialog = document.getElementById('startup-dialog');
+    const colorContainer = document.getElementById('color-container');
+
+    function invertHex(hex) {
+      return (Number(`0x1${hex}`) ^ 0xFFFFFF).toString(16).substr(1).toUpperCase()
+    }
+
+    function createDotPatternCanvas(bgColor, dotColor) {
+      // Create small offscreen canvas (8x8px)
+      const size = 8;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      
+      // Fill background
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, size, size);
+      
+      // Draw dot (slightly offset for natural look)
+      ctx.fillStyle = dotColor;
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, 1, 0, Math.PI * 2);
+      ctx.fill();
+      
+      return canvas;
+    }
+
+    // ------------------------
+    // Startup Dialogue Logic
+    // ------------------------
+    document.getElementById('create-picture').addEventListener('click', () => {
+      // Get user-specified values
+      const initWidth = parseInt(document.getElementById('init-width').value, 10);
+      const initHeight = parseInt(document.getElementById('init-height').value, 10);
+      currentColor = invertHex(document.getElementById('init-color').value);
+      // Hide startup dialog and show workspace
+      startupDialog.style.display = 'none';
+      actionBar.style.display = 'flex';
+      toolBar.style.display = 'flex';
+      canvasContainer.style.display = 'block';
+      // Initialize the canvas with the provided dimensions
+      initCanvas(initWidth, initHeight, document.getElementById('init-color').value);
+      setTool('brush');
+      initColorSwatches();
+      updateUndoRedoButtons();
+    });
+
+    var CanvasBgPattern = null;
+
+    // ------------------------
+    // Canvas and Offscreen Setup
+    // ------------------------
+    function initCanvas(width, height, fillcolor) {
+      canvas = document.getElementById('canvas');
+      ctx = canvas.getContext('2d');
+
+      const tgWebApp = window.Telegram?.WebApp;
+
+      const bgColor = tgWebApp?.themeParams?.bg_color || '#f0f0f0';
+      const dotColor = tgWebApp?.themeParams?.text_color 
+         ? adjustColorBrightness(tgWebApp.themeParams.text_color, 0.2) 
+         : 'rgba(0,0,0,0.1)';
+          
+      const patternCanvas = createDotPatternCanvas(bgColor, dotColor);
+      CanvasBgPattern = ctx.createPattern(patternCanvas, 'repeat');
+      
+      console.log(CanvasBgPattern);
+      canvas.fillStyle = CanvasBgPattern;
+
+      // Create offscreen canvas for permanent drawing
+      offscreenCanvas = document.createElement('canvas');
+      offscreenCanvas.width = width;
+      offscreenCanvas.height = height;
+      offscreenCtx = offscreenCanvas.getContext('2d');
+      // Fill offscreen canvas with white and initial color settings if needed
+      offscreenCtx.fillStyle = fillcolor;
+      offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+      // Set visible canvas size to fill container
+      resizeCanvas();
+
+      saveState();
+    }
+    
+    function resizeCanvas() {
+      const container = canvasContainer;
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      redraw();
+    }
+
+    function redraw() {
+      // Redraw the offscreen canvas onto the visible canvas with current pan/zoom
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      canvas.fillStyle = CanvasBgPattern;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(scale, 0, 0, scale, panX, panY);
+      ctx.drawImage(offscreenCanvas, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+    }
+    
+    window.addEventListener('resize', resizeCanvas);
+
+    // ------------------------
+    // Drawing Functions (operate on offscreen canvas)
+    // ------------------------
+    function startDrawing(e) {
+      if (currentTool === 'move') return;
+      isDrawing = true;
+      const pos = getCanvasPosition(e);
+      offscreenCtx.beginPath();
+      offscreenCtx.moveTo(pos.x, pos.y);
+      if (currentTool === 'brush') {
+        offscreenCtx.strokeStyle = currentColor;
+        offscreenCtx.lineWidth = brushSize;
+        offscreenCtx.lineCap = 'round';
+        offscreenCtx.lineJoin = 'round';
+      } else if (currentTool === 'eraser') {
+        offscreenCtx.strokeStyle = 'white';
+        offscreenCtx.lineWidth = brushSize * 2;
+      }
+    }
+
+    function draw(e) {
+      if (!isDrawing || currentTool === 'move') return;
+      const pos = getCanvasPosition(e);
+      offscreenCtx.lineTo(pos.x, pos.y);
+      offscreenCtx.stroke();
+      redraw();
+    }
+
+    function stopDrawing() {
+      if (isDrawing && currentTool !== 'move') {
+        saveState();
+      }
+      isDrawing = false;
+      offscreenCtx.beginPath();
+    }
+
+    function getCanvasPosition(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      return {
+        x: (clientX - rect.left - panX) / scale,
+        y: (clientY - rect.top - panY) / scale
+      };
+    }
+
+    // ------------------------
+    // Move and Zoom Functions
+    // ------------------------
+    function startMove(e) {
+      if (currentTool !== 'move') return;
+      isDrawing = true;
+      const rect = canvas.getBoundingClientRect();
+      startX = (e.clientX || e.touches[0].clientX) - rect.left;
+      startY = (e.clientY || e.touches[0].clientY) - rect.top;
+    }
+
+    function doMove(e) {
+      if (!isDrawing || currentTool !== 'move') return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX || e.touches[0].clientX) - rect.left;
+      const y = (e.clientY || e.touches[0].clientY) - rect.top;
+      panX += x - startX;
+      panY += y - startY;
+      startX = x;
+      startY = y;
+      redraw();
+    }
+
+    function handleZoom(e) {
+      if (currentTool !== 'move') return;
+      e.preventDefault();
+      const delta = e.deltaY * -0.01;
+      const zoomSensitivity = -0.05;
+      const zoomFactor = 1 - delta * zoomSensitivity;
+  
+      const newScale = Math.min(Math.max(0.125, scale * zoomFactor), 4);
+      //const newScale = Math.min(Math.max(0.125, scale + delta), 4);
+      if (newScale !== scale) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        // Adjust pan such that the zoom centers on the current mouse position
+        panX = mouseX - (mouseX - panX) * (newScale / scale);
+        panY = mouseY - (mouseY - panY) * (newScale / scale);
+        scale = newScale;
+        redraw();
+      }
+    }
+
+    // ------------------------
+    // History Functions (limit to 20 actions)
+    // ------------------------
+    function saveState() {
+      // Keep only a maximum of maxHistory images
+      history = history.slice(0, historyIndex + 1);
+      history.push(offscreenCanvas.toDataURL());
+      if (history.length > maxHistory) {
+        history.shift();
+      } else {
+        historyIndex++;
+      }
+      updateUndoRedoButtons();
+    }
+
+    function undo() {
+      if (historyIndex > 0) {
+        historyIndex--;
+        loadFromHistory();
+      }
+    }
+
+    function redo() {
+      if (historyIndex < history.length - 1) {
+        historyIndex++;
+        loadFromHistory();
+      }
+    }
+
+    function loadFromHistory() {
+      const img = new Image();
+      img.onload = function() {
+        offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
+        offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+        offscreenCtx.drawImage(img, 0, 0);
+        redraw();
+      };
+      img.src = history[historyIndex];
+      updateUndoRedoButtons();
+    }
+
+    function updateUndoRedoButtons() {
+      document.getElementById('undo-btn').style.display = (historyIndex > 0) ? 'block' : 'none';
+      document.getElementById('redo-btn').style.display = (historyIndex < history.length - 1) ? 'block' : 'none';
+    }
+
+    // ------------------------
+    // Save function
+    // ------------------------
+    function saveImage() {
+      offscreenCanvas.toBlob(function(blob) {
+        if (tg.platform !== 'unknown') {
+          tg.sendData(JSON.stringify({
+            type: 'image',
+            data: offscreenCanvas.toDataURL().split(',')[1]
+          }));
+        } else {
+          const link = document.createElement('a');
+          link.download = 'drawing.png';
+          link.href = URL.createObjectURL(blob);
+          link.click();
+        }
+      }, 'image/png');
+    }
+
+    // ------------------------
+    // Tool switching and Options Panels
+    // ------------------------
+    function setTool(tool) {
+      console.log("set tool : " + tool);
+      currentTool = tool;
+      document.querySelectorAll('.tool-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tool === tool);
+      });
+      // Floating panel: show only the options for the current tool
+      document.getElementById('floating-panel').style.display = (tool === 'move' || tool === 'eraser' || tool === 'brush') ? 'block' : 'none';
+      ['brush-options','eraser-options','move-options'].forEach(id => {
+        document.getElementById(id).style.display = (id === tool + "-options") ? 'block' : 'none';
+      });
+      // Toggle action buttons
+      if (tool === 'move') {
+        document.getElementById('save-btn').style.display = 'block';
+        document.getElementById('undo-btn').style.display = 'none';
+        document.getElementById('redo-btn').style.display = 'none';
+      } else {
+        document.getElementById('save-btn').style.display = 'none';
+        updateUndoRedoButtons();
+      }
+    }
+
+    // ------------------------
+    // Color Management with Recent Color Queue
+    // ------------------------
+    function initColorSwatches() {
+      // Clear container except the "new color" button
+      colorContainer.innerHTML = "";
+      // Build swatches from recentColors array
+      recentColors.forEach(color => {
+        const swatch = document.createElement('div');
+        swatch.className = 'color-swatch';
+        swatch.style.background = color;
+        swatch.dataset.color = color;
+        swatch.addEventListener('click', () => setColor(color));
+        colorContainer.appendChild(swatch);
+      });
+      // Set the active color
+      setColor(currentColor);
+    }
+
+    function setColor(color) {
+      currentColor = color;
+      document.querySelectorAll('.color-swatch').forEach(swatch => {
+        swatch.classList.toggle('active', swatch.dataset.color === color);
+      });
+    }
+    
+    function addCustomColor(color) {
+      // Update recentColors: add new color at beginning and remove last if over 5
+      recentColors.unshift(color);
+      if(recentColors.length > 5) {
+        recentColors.pop();
+      }
+      initColorSwatches();
+      setColor(color);
+    }
+
+    function setCustomColor(color) {
+      // Update recentColor
+      recentColors[0] = color;
+      currentColor = color;
+      initColorSwatches();
+    }
+    
+    // ------------------------
+    // Event Listeners
+    // ------------------------
+    canvasContainer.addEventListener('mousedown', (e) => {
+      if (currentTool === 'move') startMove(e);
+      else startDrawing(e);
+    });
+    canvasContainer.addEventListener('touchstart', (e) => {
+      if (currentTool === 'move') startMove(e);
+      else startDrawing(e);
+    }, { passive: false });
+    
+    canvasContainer.addEventListener('mousemove', (e) => {
+      if (currentTool === 'move') doMove(e);
+      else draw(e);
+    });
+    canvasContainer.addEventListener('touchmove', (e) => {
+      if (currentTool === 'move') doMove(e);
+      else draw(e);
+    }, { passive: false });
+    
+    canvasContainer.addEventListener('mouseup', stopDrawing);
+    canvasContainer.addEventListener('touchend', stopDrawing);
+    canvasContainer.addEventListener('mouseleave', stopDrawing);
+    canvasContainer.addEventListener('wheel', handleZoom, { passive: false });
+    
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', () => setTool(btn.dataset.tool));
+    });
+   
+    document.getElementById('color-input').addEventListener('click', (e) => {
+      addCustomColor(e.target.value);
+    });
+
+    document.getElementById('color-input').addEventListener('input', (e) => {
+      const color = e.target.value;
+      setCustomColor(color);
+      //document.getElementById('color-picker').style.display = 'none';
+    });
+    
+    document.getElementById('brush-size').addEventListener('input', (e) => {
+      brushSize = parseInt(e.target.value, 10);
+    });
+    
+    document.getElementById('clear-canvas').addEventListener('click', () => {
+      offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
+      offscreenCtx.fillStyle = 'white';
+      offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+      saveState();
+      redraw();
+    });
+    
+    document.getElementById('reset-view').addEventListener('click', () => {
+      scale = 1;
+      panX = 0;
+      panY = 0;
+      redraw();
+    });
+    
+    document.getElementById('undo-btn').addEventListener('click', undo);
+    document.getElementById('redo-btn').addEventListener('click', redo);
+    document.getElementById('save-btn').addEventListener('click', saveImage);
+    
+    // ------------------------
+    // Touch Events: prevent scrolling on touch devices when drawing/moving
+    // ------------------------
+    ['touchmove', 'touchstart'].forEach(evt => {
+      canvasContainer.addEventListener(evt, (e) => {
+        e.preventDefault();
+      }, { passive: false });
+    });
+  </script>
+</body>
+</html>
+
