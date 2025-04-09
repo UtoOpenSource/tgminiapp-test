@@ -3,72 +3,212 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mini App Demo</title>
+  <title>✨ Ultimate Mini App Demo</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; width: 100%; height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--tg-theme-bg-color, #ffffff);
+      color: var(--tg-theme-text-color, #000000);
+    }
+    #header {
+      padding: 12px 16px;
+      background: var(--tg-theme-header-bg-color, #0088cc);
+      color: var(--tg-theme-header-text-color, #ffffff);
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #content {
+      padding: 16px;
+    }
+    .media-container {
+      margin: 12px 0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .media-container img, .media-container iframe {
+      width: 100%;
+      display: block;
+    }
+    canvas {
+      display: block;
+      background: #f8f8f8;
+      border-radius: 8px;
+      margin: 12px 0;
+      touch-action: none;
+    }
+    button {
+      background: var(--tg-theme-button-color, #0088cc);
+      color: var(--tg-theme-button-text-color, #ffffff);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-right: 8px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <canvas id="canvas"></canvas>
+  <div id="header">
+    <span>Mini App Demo</span>
+    <div>
+      <button id="back-btn">← Back</button>
+      <button id="close-btn">✕ Close</button>
+    </div>
+  </div>
+
+  <div id="content">
+    <h2>🎨 Interactive Canvas</h2>
+    <canvas id="canvas" width="300" height="200"></canvas>
+    <div>
+      <button id="mode-btn">Switch to Drawing</button>
+      <button id="clear-btn">Clear Canvas</button>
+    </div>
+
+    <h2>📸 Media Examples</h2>
+    <div class="media-container">
+      <img src="https://media.tenor.com/HUMCvIcKh_cAAAAM/cat-komaru.gif" alt="Random Image" style="max-height: 200px; width: auto; margin: 0 auto; display: block;">
+    </div>
+    
+    <div class="media-container">
+      <video controls style="max-height: 200px; width: 50%;">
+      <source src="https://sample-videos.com/video321/mp4/240/big_buck_bunny_240p_10mb.mp4" 
+            type="video/mp4">
+    Your browser doesn't support HTML5 video.
+  </video>
+    </div>
+  </div>
+
   <script>
     const tg = window.Telegram.WebApp;
-    
-    // 1. Configure for compact mode (near text input)
-    tg.MainButton.hide(); // Hide default button
-    tg.enableClosingConfirmation(); // Prevent accidental closes
-    tg.setHeaderColor('#0088cc'); // Match Telegram's theme
+    tg.expand(); // Open in fullscreen by default
 
-    // 2. Dynamic canvas setup (scales to container)
+    // --- Back/Close Buttons ---
+    document.getElementById('back-btn').addEventListener('click', () => {
+      tg.BackButton.onClick(); // Handles navigation internally
+    });
+    
+    document.getElementById('close-btn').addEventListener('click', () => {
+      tg.close(); // Close mini-app
+    });
+
+    // Show back button only if needed
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+      tg.showAlert("Back button pressed!");
+    });
+
+    // --- Dynamic Canvas ---
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    let ripples = [];
-    
-    function resize() {
-      canvas.width = tg.viewportWidth;
-      canvas.height = tg.viewportHeight * 0.5; // Compact height
+    let isDrawingMode = false;
+    let ball = { x: 50, y: 50, dx: 2, dy: 1, radius: 10 };
+
+    // Handle canvas scaling
+    function resizeCanvas() {
+      const container = canvas.parentElement;
+      canvas.width = container.clientWidth;
+      canvas.height = Math.min(container.clientWidth * 0.66, 300);
     }
-    tg.onEvent('viewportChanged', resize);
-    resize();
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
-    // 3. Interactive ripple animation
-    canvas.addEventListener('click', (e) => {
-      ripples.push({
-        x: e.offsetX,
-        y: e.offsetY,
-        radius: 0,
-        alpha: 1
-      });
-    });
-
-    function animate() {
+    // Bouncing ball logic
+    function updateBall() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw ripples
-      ripples.forEach((ripple, i) => {
-        ctx.beginPath();
-        ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 136, 204, ${ripple.alpha})`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        ripple.radius += 2;
-        ripple.alpha -= 0.02;
-        
-        if (ripple.alpha <= 0) ripples.splice(i, 1);
-      });
+      // Draw ball
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#0088cc';
+      ctx.fill();
       
-      requestAnimationFrame(animate);
+      // Physics
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+      
+      // Wall collision
+      if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
+        ball.dx = -ball.dx;
+      }
+      if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+        ball.dy = -ball.dy;
+      }
+      
+      if (!isDrawingMode) requestAnimationFrame(updateBall);
     }
-    animate();
 
-    // 4. Media example (image/video would work similarly)
-    tg.showPopup({
-      title: "Media Ready!",
-      message: "You can embed images/videos using standard HTML tags.",
-      buttons: [{ type: 'close' }]
+    // Drawing logic
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('touchstart', startDrawing);
+    
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('touchmove', draw);
+    
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('touchend', stopDrawing);
+
+    function startDrawing(e) {
+      if (!isDrawingMode) return;
+      isDrawing = true;
+      [lastX, lastY] = getPosition(e);
+    }
+
+    function draw(e) {
+      if (!isDrawing || !isDrawingMode) return;
+      const [x, y] = getPosition(e);
+      
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = '#FF3B30';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      
+      [lastX, lastY] = [x, y];
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+    }
+
+    function getPosition(e) {
+      const rect = canvas.getBoundingClientRect();
+      return [
+        (e.clientX || e.touches[0].clientX) - rect.left,
+        (e.clientY || e.touches[0].clientY) - rect.top
+      ];
+    }
+
+    // Button controls
+    document.getElementById('mode-btn').addEventListener('click', () => {
+      isDrawingMode = !isDrawingMode;
+      document.getElementById('mode-btn').textContent = 
+        isDrawingMode ? "Switch to Bouncing Ball" : "Switch to Drawing";
+      
+      if (isDrawingMode) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } else {
+        updateBall();
+      }
     });
+
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!isDrawingMode) updateBall();
+    });
+
+    // Start animation
+    updateBall();
   </script>
 </body>
 </html>
